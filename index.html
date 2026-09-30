@@ -7,16 +7,17 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="IPMI Tasks">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="theme-color" content="#f3f5f9" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#0f1426" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f3f5f9">
   <title>IPMI Tasks</title>
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <link rel="stylesheet" href="styles.css?v=3">
+  <link rel="stylesheet" href="styles.css?v=4">
+  <script src="theme.js?v=3"></script>
 </head>
 <body>
   <!-- Sign-in screen -->
   <div id="authView" class="auth" hidden>
+    <button type="button" class="theme-btn auth-theme" aria-label="Change day/night mode"><span class="theme-icon"></span><span class="theme-label"></span></button>
     <div class="auth-card">
       <img class="auth-logo" src="logo-mark.png" alt="" width="120" height="80">
       <p class="brand-kicker">Integrity Property Management</p>
@@ -51,7 +52,10 @@
           <span>Integrity Property Management</span>
         </div>
       </div>
-      <button id="avatarBtn" class="avatar" title="Account" aria-label="Account"></button>
+      <div class="topbar-right">
+        <button type="button" class="theme-btn" aria-label="Change day/night mode"><span class="theme-icon"></span><span class="theme-label"></span></button>
+        <button id="avatarBtn" class="avatar" title="Account" aria-label="Account"></button>
+      </div>
     </header>
 
     <section class="hero">
@@ -131,6 +135,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="config.js?v=2"></script>
-  <script src="app.js?v=3"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>

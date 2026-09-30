@@ -27,8 +27,10 @@
   --radius-md: 16px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
+/* Dark mode: set by theme.js (Auto follows Las Vegas time) */
+:root { color-scheme: light; }
+:root[data-theme="dark"] {
+  color-scheme: dark;
     --navy: #e8ecf8;           /* "ink" surfaces flip to light in dark mode */
     --navy-2: #c9d0e6;
     --on-navy: #0f1426;
@@ -47,7 +49,6 @@
     --danger-soft: #3d2320;
     --warn: #f0c35a;
     --warn-soft: #3a3120;
-  }
 }
 
 * { box-sizing: border-box; }
@@ -372,3 +373,32 @@ button { -webkit-tap-highlight-color: transparent; }
   .add-options .field:first-child { grid-column: 1 / -1; }
   .tools { grid-template-columns: 1fr 1.4fr; }
 }
+
+/* ---------- Day / night toggle ---------- */
+.topbar-right { display: flex; align-items: center; gap: 8px; flex: none; }
+.theme-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 40px; padding: 0 14px 0 10px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  box-shadow: var(--shadow);
+}
+.theme-icon {
+  width: 24px; height: 24px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 14px;
+  background: var(--green-soft); color: var(--green-deep);
+}
+.auth { position: relative; }
+.auth-theme { position: absolute; top: max(16px, env(safe-area-inset-top)); right: 16px; }
+.theme-icon { font-size: 15px; }
+.brand > div { min-width: 0; }
+@media (max-width: 460px) {
+  .topbar .theme-btn { width: 40px; padding: 0; justify-content: center; }
+  .topbar .theme-label { display: none; }
+  .topbar .theme-icon { width: 30px; height: 30px; font-size: 17px; }
+}
+.theme-icon svg { display: block; }
+/* Keep the navy logo readable on dark backgrounds */
+:root[data-theme="dark"] .auth-logo,
+:root[data-theme="dark"] .loading img { background: #ffffff; border-radius: 20px; padding: 10px 14px; box-sizing: content-box; }
+.toast { width: max-content; }
