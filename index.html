@@ -3,11 +3,39 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="To-Do">
+  <meta name="theme-color" content="#0e6a6a">
   <title>To-Do</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230e6a6a'/%3E%3Cpath d='M28 52l15 15 30-32' fill='none' stroke='white' stroke-width='10' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="app">
+  <!-- Sign-in screen -->
+  <div id="authView" class="auth" hidden>
+    <div class="auth-card">
+      <h1>To-Do</h1>
+      <p class="auth-sub">Sign in to see your tasks on any device.</p>
+      <form id="authForm" autocomplete="on">
+        <label>Email
+          <input id="authEmail" type="email" autocomplete="email" required>
+        </label>
+        <label>Password
+          <input id="authPassword" type="password" autocomplete="current-password" minlength="6" required>
+        </label>
+        <button type="submit" class="btn-primary" id="signInBtn">Sign in</button>
+        <button type="button" class="btn-link" id="signUpBtn">First time? Create your account</button>
+      </form>
+      <p id="authMsg" class="auth-msg" hidden></p>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div id="loadingView" class="loading">Loading…</div>
+
+  <!-- Main app -->
+  <div class="app" id="appView" hidden>
     <header class="header">
       <div>
         <h1>To-Do</h1>
@@ -52,10 +80,13 @@
     <footer class="footer">
       <button id="clearDone" class="btn-link">Clear completed</button>
       <div class="footer-right">
+        <span id="syncStatus" class="sync-status"></span>
         <button id="exportBtn" class="btn-link">Export</button>
         <label class="btn-link">Import<input id="importInput" type="file" accept="application/json" hidden></label>
+        <button id="signOutBtn" class="btn-link">Sign out</button>
       </div>
     </footer>
+    <p class="account" id="accountLabel"></p>
   </div>
 
   <div id="toast" class="toast" hidden>
@@ -63,6 +94,8 @@
     <button id="toastUndo">Undo</button>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

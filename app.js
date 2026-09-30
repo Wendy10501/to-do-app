@@ -1,15 +1,22 @@
 // ============================================================
 // To-Do App
-// Tasks are saved in the browser (localStorage), so they stay
-// between visits on the same computer and browser.
+// Tasks are stored online in Supabase, so they sync across every
+// device and browser you sign in on. A copy is kept on the device
+// so the list shows instantly and stays readable offline.
 // ============================================================
 
 // ---- Settings you can change ----
 const LISTS = ["Work", "Personal", "Errands"];   // edit these names to suit you
-const STORAGE_KEY = "todo-app.tasks";
+const OLD_STORAGE_KEY = "todo-app.tasks";         // where the first version kept tasks
+
+// ---- Supabase ----
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { persistSession: true, autoRefreshToken: true },
+});
 
 // ---- State ----
-let tasks = loadTasks();
+let user = null;
+let tasks = [];
 let currentFilter = "all";
 let currentList = "";
 let searchText = "";
@@ -46,48 +53,129 @@ function escapeHTML(str) {
   return div.innerHTML;
 }
 
-// ---- Storage ----
-function loadTasks() {
+// ---- Converting between the app and the database ----
+function toRow(t) {
+  return {
+    id: t.id,
+    title: t.title,
+    due: t.due || null,
+    priority: t.priority || "normal",
+    list: t.list || null,
+    done: !!t.done,
+    created_at: t.createdAt || Date.now(),
+    done_at: t.doneAt || null,
+  };
+}
+
+function fromRow(r) {
+  return {
+    id: r.id,
+    title: r.title,
+    due: r.due || "",
+    priority: r.priority || "normal",
+    list: r.list || "",
+    done: r.done,
+    createdAt: Number(r.created_at),
+    doneAt: r.done_at ? Number(r.done_at) : null,
+  };
+}
+
+// ---- Device cache (for instant display / offline reading) ----
+function cacheKey() { return user ? `todo-app.cache.${user.id}` : null; }
+
+function saveCache() {
+  try { localStorage.setItem(cacheKey(), JSON.stringify(tasks)); } catch {}
+}
+
+function loadCache() {
+  try { return JSON.parse(localStorage.getItem(cacheKey())) || []; } catch { return []; }
+}
+
+// ---- Sync status ----
+let pending = 0;
+function setSync(state) {
+  const el = $("syncStatus");
+  if (state === "saving") el.textContent = "Saving…";
+  else if (state === "error") el.textContent = "Not saved – offline?";
+  else el.textContent = "Synced";
+  el.className = `sync-status ${state || ""}`;
+}
+
+async function remote(fn) {
+  pending++;
+  setSync("saving");
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-  } catch {
-    return [];
+    const { error } = await fn();
+    if (error) throw error;
+    pending--;
+    if (!pending) setSync("ok");
+    return true;
+  } catch (err) {
+    pending--;
+    console.error(err);
+    setSync("error");
+    showToast("Couldn't save to the cloud. Check your connection.");
+    return false;
   }
 }
 
-function saveTasks() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
-  } catch {
-    showToast("Couldn't save. Your browser may be blocking storage.");
+async function fetchTasks() {
+  setSync("saving");
+  const { data, error } = await db.from("tasks").select("*").order("created_at");
+  if (error) {
+    console.error(error);
+    setSync("error");
+    return;
+  }
+  tasks = data.map(fromRow);
+  saveCache();
+  setSync("ok");
+  render();
+}
+
+// Move tasks saved by the old, device-only version into the cloud (once)
+async function migrateOldTasks() {
+  let old = [];
+  try { old = JSON.parse(localStorage.getItem(OLD_STORAGE_KEY)) || []; } catch {}
+  if (!old.length) return;
+  const ok = await remote(() => db.from("tasks").upsert(old.filter((t) => t && t.title).map(toRow)));
+  if (ok) {
+    localStorage.setItem(OLD_STORAGE_KEY + ".migrated", localStorage.getItem(OLD_STORAGE_KEY));
+    localStorage.removeItem(OLD_STORAGE_KEY);
+    showToast(`Moved ${old.length} task${old.length === 1 ? "" : "s"} from this device to your account.`);
   }
 }
 
 // ---- Task actions ----
 function addTask({ title, due, priority, list }) {
-  tasks.push({ id: newId(), title, due, priority, list, done: false, createdAt: Date.now(), doneAt: null });
-  saveTasks();
+  const task = { id: newId(), title, due, priority, list, done: false, createdAt: Date.now(), doneAt: null };
+  tasks.push(task);
+  saveCache();
   render();
+  remote(() => db.from("tasks").insert(toRow(task)));
 }
 
 function updateTask(id, changes) {
   const task = tasks.find((t) => t.id === id);
   if (!task) return;
   Object.assign(task, changes);
-  saveTasks();
+  saveCache();
   render();
+  remote(() => db.from("tasks").update(toRow(task)).eq("id", id));
 }
 
 function deleteTask(id) {
   const index = tasks.findIndex((t) => t.id === id);
   if (index === -1) return;
   const [removed] = tasks.splice(index, 1);
-  saveTasks();
+  saveCache();
   render();
+  remote(() => db.from("tasks").delete().eq("id", id));
   showToast("Task deleted.", () => {
     tasks.splice(index, 0, removed);
-    saveTasks();
+    saveCache();
     render();
+    remote(() => db.from("tasks").insert(toRow(removed)));
   });
 }
 
@@ -95,12 +183,14 @@ function clearCompleted() {
   const removed = tasks.filter((t) => t.done);
   if (!removed.length) return;
   tasks = tasks.filter((t) => !t.done);
-  saveTasks();
+  saveCache();
   render();
+  remote(() => db.from("tasks").delete().in("id", removed.map((t) => t.id)));
   showToast(`Cleared ${removed.length} completed task${removed.length === 1 ? "" : "s"}.`, () => {
     tasks.push(...removed);
-    saveTasks();
+    saveCache();
     render();
+    remote(() => db.from("tasks").insert(removed.map(toRow)));
   });
 }
 
@@ -135,7 +225,7 @@ function taskHTML(task) {
   if (task.priority === "high" && !task.done) classes.push("high");
 
   return `
-    <li class="${classes.join(" ")}" data-id="${task.id}">
+    <li class="${classes.join(" ")}" data-id="${escapeHTML(task.id)}">
       <input type="checkbox" ${task.done ? "checked" : ""} aria-label="Mark done">
       <div class="body">
         <div class="title" title="Click to edit">${escapeHTML(task.title)}</div>
@@ -254,16 +344,52 @@ function importTasks(file) {
       const data = JSON.parse(reader.result);
       if (!Array.isArray(data)) throw new Error();
       const existing = new Set(tasks.map((t) => t.id));
-      const added = data.filter((t) => t && t.title && !existing.has(t.id));
-      tasks.push(...added.map((t) => ({ id: t.id || newId(), ...t })));
-      saveTasks();
+      const added = data
+        .filter((t) => t && t.title && !existing.has(t.id))
+        .map((t) => ({ ...t, id: t.id || newId() }));
+      tasks.push(...added);
+      saveCache();
       render();
+      if (added.length) remote(() => db.from("tasks").upsert(added.map(toRow)));
       showToast(`Imported ${added.length} task${added.length === 1 ? "" : "s"}.`);
     } catch {
       showToast("That file isn't a valid task export.");
     }
   };
   reader.readAsText(file);
+}
+
+// ---- Screens ----
+function showView(name) {
+  $("loadingView").hidden = name !== "loading";
+  $("authView").hidden = name !== "auth";
+  $("appView").hidden = name !== "app";
+}
+
+function authMessage(text, isError = false) {
+  const el = $("authMsg");
+  el.textContent = text;
+  el.hidden = !text;
+  el.classList.toggle("error", isError);
+}
+
+async function onSignedIn(sessionUser) {
+  const firstLoad = !user || user.id !== sessionUser.id;
+  user = sessionUser;
+  $("accountLabel").textContent = `Signed in as ${user.email}`;
+  showView("app");
+  if (firstLoad) {
+    tasks = loadCache();
+    render();
+    await migrateOldTasks();
+    await fetchTasks();
+  }
+}
+
+function onSignedOut() {
+  user = null;
+  tasks = [];
+  showView("auth");
 }
 
 // ---- Setup ----
@@ -275,6 +401,38 @@ function init() {
   $("listInput").innerHTML = LISTS.map((l) => `<option>${escapeHTML(l)}</option>`).join("");
   $("listFilter").innerHTML = `<option value="">All lists</option>` +
     LISTS.map((l) => `<option>${escapeHTML(l)}</option>`).join("");
+
+  // Sign in / sign up
+  $("authForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    authMessage("Signing in…");
+    const { error } = await db.auth.signInWithPassword({
+      email: $("authEmail").value.trim(),
+      password: $("authPassword").value,
+    });
+    if (error) authMessage(error.message, true);
+    else authMessage("");
+  });
+
+  $("signUpBtn").addEventListener("click", async () => {
+    const email = $("authEmail").value.trim();
+    const password = $("authPassword").value;
+    if (!email || password.length < 6) {
+      authMessage("Enter your email and a password (at least 6 characters), then tap Create account again.", true);
+      return;
+    }
+    authMessage("Creating your account…");
+    const { data, error } = await db.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: location.origin + location.pathname },
+    });
+    if (error) authMessage(error.message, true);
+    else if (!data.session) authMessage("Check your email and click the confirmation link, then come back and sign in.");
+    else authMessage("");
+  });
+
+  $("signOutBtn").addEventListener("click", () => db.auth.signOut());
 
   // Add task
   $("addForm").addEventListener("submit", (e) => {
@@ -337,7 +495,16 @@ function init() {
     undoAction = null;
   });
 
-  render();
+  // Pull fresh tasks whenever you come back to the app (e.g. switching from phone to computer)
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && user && !pending) fetchTasks();
+  });
+
+  // Session handling
+  db.auth.onAuthStateChange((_event, session) => {
+    // Defer so Supabase finishes its own work before we query
+    setTimeout(() => (session ? onSignedIn(session.user) : onSignedOut()), 0);
+  });
 }
 
 init();

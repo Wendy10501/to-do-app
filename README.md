@@ -1,6 +1,6 @@
 # To-Do App
 
-A simple to-do list app built with plain HTML, CSS, and JavaScript. No installs, frameworks, or accounts needed.
+A simple to-do list app built with plain HTML, CSS, and JavaScript. Tasks are stored in Supabase, so they sync across every device you sign in on.
 
 ## Files
 
@@ -8,11 +8,11 @@ A simple to-do list app built with plain HTML, CSS, and JavaScript. No installs,
 |------|--------------|
 | `index.html` | The page layout |
 | `styles.css` | Colors, fonts, spacing (supports light and dark mode) |
-| `app.js` | All the app logic: adding, editing, sorting, saving |
+| `app.js` | All the app logic: sign-in, adding, editing, sorting, syncing |
+| `config.js` | Your Supabase project address and publishable key |
+| `schema.sql` | The database table and privacy rules (already run in Supabase) |
 
 ## How to run it
-
-**On your computer:** Keep the three files in the same folder and double-click `index.html`. It opens in your browser.
 
 **Online:** This app is hosted on GitHub Pages at https://wendy10501.github.io/to-do-app/ . Open it on your phone and use "Add to Home Screen" to get an app icon.
 
@@ -28,7 +28,9 @@ A simple to-do list app built with plain HTML, CSS, and JavaScript. No installs,
 
 ## Where tasks are saved
 
-Tasks are stored in your browser's local storage. They stay put between visits, but only on the same computer and browser. Clearing your browser data erases them, so use **Export** now and then as a backup.
+Tasks are saved in your Supabase project (`todo-app`) under your account, so they show up on your phone, computer, and any browser once you sign in. Row-level security means each account can only see its own tasks. A copy is also kept on each device so the list appears instantly.
+
+The first time you sign in on a device that has tasks from the old, device-only version, those tasks are moved into your account automatically.
 
 ## Customizing
 
