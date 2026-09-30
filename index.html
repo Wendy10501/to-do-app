@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>To-Do</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div>
+        <h1>To-Do</h1>
+        <p class="today" id="todayLabel"></p>
+      </div>
+      <div class="stats">
+        <div><strong id="countOpen">0</strong><span>Open</span></div>
+        <div class="overdue"><strong id="countOverdue">0</strong><span>Overdue</span></div>
+        <div><strong id="countDone">0</strong><span>Done</span></div>
+      </div>
+    </header>
+
+    <form id="addForm" class="add-form" autocomplete="off">
+      <input id="titleInput" type="text" placeholder="What needs to be done?" maxlength="200" required>
+      <div class="add-options">
+        <label>Due <input id="dueInput" type="date"></label>
+        <label>Priority
+          <select id="priorityInput">
+            <option value="normal">Normal</option>
+            <option value="high">High</option>
+            <option value="low">Low</option>
+          </select>
+        </label>
+        <label>List
+          <select id="listInput"></select>
+        </label>
+        <button type="submit" class="btn-primary">Add task</button>
+      </div>
+    </form>
+
+    <nav class="filters">
+      <button class="filter active" data-filter="all">All</button>
+      <button class="filter" data-filter="today">Today</button>
+      <button class="filter" data-filter="upcoming">Upcoming</button>
+      <button class="filter" data-filter="done">Done</button>
+      <select id="listFilter" aria-label="Filter by list"></select>
+      <input id="searchInput" type="search" placeholder="Search" aria-label="Search tasks">
+    </nav>
+
+    <main id="taskList"></main>
+
+    <footer class="footer">
+      <button id="clearDone" class="btn-link">Clear completed</button>
+      <div class="footer-right">
+        <button id="exportBtn" class="btn-link">Export</button>
+        <label class="btn-link">Import<input id="importInput" type="file" accept="application/json" hidden></label>
+      </div>
+    </footer>
+  </div>
+
+  <div id="toast" class="toast" hidden>
+    <span id="toastMsg"></span>
+    <button id="toastUndo">Undo</button>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
