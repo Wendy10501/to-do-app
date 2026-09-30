@@ -215,10 +215,10 @@ function taskHTML(task) {
   }
 
   const tags = [];
-  if (task.due) tags.push(`<span class="tag ${dueClass}">${formatDue(task.due)}</span>`);
-  if (task.priority === "high") tags.push(`<span class="tag high">High</span>`);
-  if (task.priority === "low") tags.push(`<span class="tag">Low</span>`);
-  if (task.list) tags.push(`<span class="tag">${escapeHTML(task.list)}</span>`);
+  if (task.priority === "high") tags.push(`<span class="tag high">&#128293; High Priority</span>`);
+  if (task.priority === "low") tags.push(`<span class="tag low">Low Priority</span>`);
+  if (task.due) tags.push(`<span class="tag date ${dueClass}">${dueClass === "overdue" ? "Overdue · " : "Due "}${formatDue(task.due)}</span>`);
+  if (task.list) tags.push(`<span class="tag normal">${escapeHTML(task.list)}</span>`);
 
   const classes = ["task"];
   if (task.done) classes.push("done");
@@ -228,11 +228,11 @@ function taskHTML(task) {
     <li class="${classes.join(" ")}" data-id="${escapeHTML(task.id)}">
       <input type="checkbox" ${task.done ? "checked" : ""} aria-label="Mark done">
       <div class="body">
-        <div class="title" title="Click to edit">${escapeHTML(task.title)}</div>
         <div class="meta">${tags.join("")}</div>
+        <div class="title" title="Click to edit">${escapeHTML(task.title)}</div>
       </div>
       <div class="actions">
-        <button class="icon-btn priority" title="Toggle high priority" aria-label="Toggle high priority">&#9873;</button>
+        <button class="icon-btn priority${task.priority === "high" ? " on" : ""}" title="Toggle high priority" aria-label="Toggle high priority">&#9873;</button>
         <button class="icon-btn delete" title="Delete" aria-label="Delete task">&#10005;</button>
       </div>
     </li>`;
@@ -266,6 +266,27 @@ function render() {
   $("countOpen").textContent = allOpen.length;
   $("countOverdue").textContent = allOpen.filter((t) => t.due && t.due < today).length;
   $("countDone").textContent = tasks.length - allOpen.length;
+
+  // Filter badges (respect the list + search filters)
+  const counts = { all: open.length, today: overdue.length + dueToday.length, upcoming: upcoming.length, done: done.length };
+  document.querySelectorAll("[data-count]").forEach((el) => { el.textContent = counts[el.dataset.count]; });
+
+  // Progress bar
+  const pct = tasks.length ? Math.round(((tasks.length - allOpen.length) / tasks.length) * 100) : 0;
+  $("progressBar").style.width = pct + "%";
+  $("progressPct").textContent = pct + "%";
+
+  // Daily banner
+  const dueNow = allOpen.filter((t) => t.due && t.due <= today).length;
+  const bannerKey = "todo-app.banner-dismissed";
+  let dismissed = "";
+  try { dismissed = sessionStorage.getItem(bannerKey) || ""; } catch {}
+  if (dueNow && dismissed !== today) {
+    $("bannerText").textContent = `Let's go! You've got ${dueNow} task${dueNow === 1 ? "" : "s"} due today.`;
+    $("banner").hidden = false;
+  } else {
+    $("banner").hidden = true;
+  }
 
   let html = "";
   if (currentFilter === "all") {
@@ -377,6 +398,13 @@ async function onSignedIn(sessionUser) {
   const firstLoad = !user || user.id !== sessionUser.id;
   user = sessionUser;
   $("accountLabel").textContent = `Signed in as ${user.email}`;
+  const name = (user.email || "").split("@")[0].split(/[._\-+0-9]/).filter(Boolean)[0] || "";
+  const pretty = name ? name[0].toUpperCase() + name.slice(1).toLowerCase() : "";
+  $("avatarBtn").textContent = (pretty[0] || "?").toUpperCase();
+  $("avatarBtn").title = user.email;
+  const hour = new Date().getHours();
+  const part = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  $("greeting").textContent = pretty ? `${part}, ${pretty}` : part;
   showView("app");
   if (firstLoad) {
     tasks = loadCache();
@@ -433,6 +461,11 @@ function init() {
   });
 
   $("signOutBtn").addEventListener("click", () => db.auth.signOut());
+
+  $("bannerClose").addEventListener("click", () => {
+    try { sessionStorage.setItem("todo-app.banner-dismissed", todayISO()); } catch {}
+    $("banner").hidden = true;
+  });
 
   // Add task
   $("addForm").addEventListener("submit", (e) => {

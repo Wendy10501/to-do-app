@@ -2,20 +2,25 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="To-Do">
-  <meta name="theme-color" content="#0e6a6a">
-  <title>To-Do</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230e6a6a'/%3E%3Cpath d='M28 52l15 15 30-32' fill='none' stroke='white' stroke-width='10' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="styles.css?v=2">
+  <meta name="apple-mobile-web-app-title" content="IPMI Tasks">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#f3f5f9" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f1426" media="(prefers-color-scheme: dark)">
+  <title>IPMI Tasks</title>
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css?v=3">
 </head>
 <body>
   <!-- Sign-in screen -->
   <div id="authView" class="auth" hidden>
     <div class="auth-card">
-      <h1>To-Do</h1>
+      <img class="auth-logo" src="logo-mark.png" alt="" width="120" height="80">
+      <p class="brand-kicker">Integrity Property Management</p>
+      <h1>IPMI Tasks</h1>
       <p class="auth-sub">Sign in to see your tasks on any device.</p>
       <form id="authForm" autocomplete="on">
         <label>Email
@@ -32,48 +37,78 @@
   </div>
 
   <!-- Loading -->
-  <div id="loadingView" class="loading">Loading…</div>
+  <div id="loadingView" class="loading">
+    <img src="logo-mark.png" alt="" width="84" height="56">
+  </div>
 
   <!-- Main app -->
   <div class="app" id="appView" hidden>
-    <header class="header">
-      <div>
-        <h1>To-Do</h1>
-        <p class="today" id="todayLabel"></p>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-badge"><img src="logo-mark.png" alt="" width="40" height="27"></span>
+        <div>
+          <strong>IPMI Tasks</strong>
+          <span>Integrity Property Management</span>
+        </div>
       </div>
+      <button id="avatarBtn" class="avatar" title="Account" aria-label="Account"></button>
+    </header>
+
+    <section class="hero">
+      <p class="today" id="todayLabel"></p>
+      <h1 id="greeting">Hello</h1>
+    </section>
+
+    <div id="banner" class="banner" hidden>
+      <span class="banner-icon" aria-hidden="true">&#128276;</span>
+      <span id="bannerText"></span>
+      <button id="bannerClose" class="banner-close" aria-label="Dismiss">&#10005;</button>
+    </div>
+
+    <section class="summary card">
       <div class="stats">
         <div><strong id="countOpen">0</strong><span>Open</span></div>
         <div class="overdue"><strong id="countOverdue">0</strong><span>Overdue</span></div>
         <div><strong id="countDone">0</strong><span>Done</span></div>
       </div>
-    </header>
+      <div class="progress" aria-hidden="true"><div id="progressBar"></div></div>
+      <p class="progress-label">Progress <strong id="progressPct">0%</strong> completed</p>
+    </section>
 
-    <form id="addForm" class="add-form" autocomplete="off">
+    <form id="addForm" class="add-form card" autocomplete="off">
       <input id="titleInput" type="text" placeholder="What needs to be done?" maxlength="200" required>
       <div class="add-options">
-        <label>Due <input id="dueInput" type="date"></label>
-        <label>Priority
+        <label class="field">
+          <span>Due</span>
+          <input id="dueInput" type="date">
+        </label>
+        <label class="field">
+          <span>Priority</span>
           <select id="priorityInput">
             <option value="normal">Normal</option>
             <option value="high">High</option>
             <option value="low">Low</option>
           </select>
         </label>
-        <label>List
+        <label class="field">
+          <span>List</span>
           <select id="listInput"></select>
         </label>
-        <button type="submit" class="btn-primary">Add task</button>
       </div>
+      <button type="submit" class="btn-primary add-btn"><span aria-hidden="true">+</span> Add task</button>
     </form>
 
-    <nav class="filters">
-      <button class="filter active" data-filter="all">All</button>
-      <button class="filter" data-filter="today">Today</button>
-      <button class="filter" data-filter="upcoming">Upcoming</button>
-      <button class="filter" data-filter="done">Done</button>
-      <select id="listFilter" aria-label="Filter by list"></select>
-      <input id="searchInput" type="search" placeholder="Search" aria-label="Search tasks">
+    <nav class="filters" aria-label="Filter tasks">
+      <button class="filter active" data-filter="all">All <span class="count" data-count="all">0</span></button>
+      <button class="filter" data-filter="today">Today <span class="count" data-count="today">0</span></button>
+      <button class="filter" data-filter="upcoming">Upcoming <span class="count" data-count="upcoming">0</span></button>
+      <button class="filter" data-filter="done">Done <span class="count" data-count="done">0</span></button>
     </nav>
+
+    <div class="tools">
+      <select id="listFilter" aria-label="Filter by list"></select>
+      <input id="searchInput" type="search" placeholder="Search tasks" aria-label="Search tasks">
+    </div>
 
     <main id="taskList"></main>
 
@@ -96,6 +131,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="config.js?v=2"></script>
-  <script src="app.js?v=2"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>
