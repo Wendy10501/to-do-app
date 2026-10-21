@@ -17,6 +17,7 @@ const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
 // ---- State ----
 let user = null;
 let tasks = [];
+let tasksSynced = false;   // true once tasks have come back from the cloud this session
 let currentFilter = "all";
 let currentList = "";
 let searchText = "";
@@ -128,6 +129,7 @@ async function fetchTasks() {
     return;
   }
   tasks = data.map(fromRow);
+  tasksSynced = true;
   saveCache();
   setSync("ok");
   render();
@@ -153,6 +155,7 @@ function addTask({ title, due, priority, list }) {
   saveCache();
   render();
   remote(() => db.from("tasks").insert(toRow(task)));
+  return task;
 }
 
 function updateTask(id, changes) {
@@ -162,11 +165,14 @@ function updateTask(id, changes) {
   saveCache();
   render();
   remote(() => db.from("tasks").update(toRow(task)).eq("id", id));
+  // Keep the matching Task Tracker item ticked (or not) to match
+  if ("done" in changes && typeof onTaskDoneChanged === "function") onTaskDoneChanged(task);
 }
 
 function deleteTask(id) {
   const index = tasks.findIndex((t) => t.id === id);
   if (index === -1) return;
+  if (typeof onTasksRemoved === "function") onTasksRemoved([tasks[index]]);
   const [removed] = tasks.splice(index, 1);
   saveCache();
   render();
@@ -182,6 +188,8 @@ function deleteTask(id) {
 function clearCompleted() {
   const removed = tasks.filter((t) => t.done);
   if (!removed.length) return;
+  // Remember in the Task Tracker that these were finished before they disappear
+  if (typeof onTasksRemoved === "function") onTasksRemoved(removed);
   tasks = tasks.filter((t) => !t.done);
   saveCache();
   render();
@@ -306,6 +314,10 @@ function render() {
 
   $("taskList").innerHTML = html;
   $("clearDone").hidden = !tasks.some((t) => t.done);
+  $("todoCount").textContent = allOpen.length;
+
+  // The Task Tracker shows task items too, so refresh it whenever tasks change
+  if (typeof renderTracker === "function") renderTracker();
 }
 
 // ---- Inline editing ----
@@ -408,6 +420,7 @@ async function onSignedIn(sessionUser) {
   showView("app");
   if (firstLoad) {
     tasks = loadCache();
+    if (typeof startBriefings === "function") startBriefings();
     render();
     await migrateOldTasks();
     await fetchTasks();
@@ -417,6 +430,8 @@ async function onSignedIn(sessionUser) {
 function onSignedOut() {
   user = null;
   tasks = [];
+  tasksSynced = false;
+  if (typeof stopBriefings === "function") stopBriefings();
   showView("auth");
 }
 
@@ -530,7 +545,10 @@ function init() {
 
   // Pull fresh tasks whenever you come back to the app (e.g. switching from phone to computer)
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible" && user && !pending) fetchTasks();
+    if (document.visibilityState === "visible" && user && !pending) {
+      fetchTasks();
+      if (typeof loadBriefings === "function") loadBriefings();
+    }
   });
 
   // Session handling

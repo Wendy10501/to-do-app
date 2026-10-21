@@ -11,7 +11,7 @@
   <title>IPMI Tasks</title>
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <link rel="stylesheet" href="styles.css?v=4">
+  <link rel="stylesheet" href="styles.css?v=5">
   <script src="theme.js?v=3"></script>
 </head>
 <body>
@@ -63,6 +63,31 @@
       <h1 id="greeting">Hello</h1>
     </section>
 
+    <!-- Tabs: Task Tracker (the daily briefing) and To-Do List -->
+    <div class="tabs" role="tablist" aria-label="Choose a view">
+      <button type="button" class="tab" role="tab" id="tabTracker" data-tab="tracker" aria-controls="trackerPanel" aria-selected="false" tabindex="-1">
+        <span>Task Tracker</span><span class="count" id="trackerCount" hidden></span>
+      </button>
+      <button type="button" class="tab active" role="tab" id="tabTodo" data-tab="todo" aria-controls="todoPanel" aria-selected="true">
+        <span>To-Do List</span><span class="count" id="todoCount">0</span>
+      </button>
+    </div>
+
+    <!-- Task Tracker: the morning briefing, with boxes to tick off -->
+    <div id="trackerPanel" class="tab-panel" role="tabpanel" aria-labelledby="tabTracker" hidden>
+      <div class="day-nav">
+        <button type="button" id="prevDay" class="day-btn" aria-label="Earlier briefing">&#8249;</button>
+        <div class="day-label">
+          <strong id="dayTitle">Daily briefing</strong>
+          <span id="daySub"></span>
+        </div>
+        <button type="button" id="nextDay" class="day-btn" aria-label="Later briefing">&#8250;</button>
+      </div>
+      <div id="trackerBody" class="stack" aria-live="polite"></div>
+    </div>
+
+    <!-- To-Do List: the original app -->
+    <div id="todoPanel" class="tab-panel" role="tabpanel" aria-labelledby="tabTodo">
     <div id="banner" class="banner" hidden>
       <span class="banner-icon" aria-hidden="true">&#128276;</span>
       <span id="bannerText"></span>
@@ -115,6 +140,7 @@
     </div>
 
     <main id="taskList"></main>
+    </div>
 
     <footer class="footer">
       <button id="clearDone" class="btn-link">Clear completed</button>
@@ -135,6 +161,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="config.js?v=2"></script>
-  <script src="app.js?v=4"></script>
+  <script src="app.js?v=5"></script>
+  <script src="briefing.js?v=1"></script>
 </body>
 </html>
