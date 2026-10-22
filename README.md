@@ -13,6 +13,11 @@ A simple to-do list app built with plain HTML, CSS, and JavaScript. Tasks are st
 | `config.js` | Your Supabase project address and publishable key |
 | `schema.sql` | The tasks table and privacy rules (already run in Supabase) |
 | `briefings.sql` | The daily briefing tables, privacy rules and save function |
+| `dashboard.html` | The Whiteboard dashboard page (sign-in, charts, lists) |
+| `dashboard.js` | The Whiteboard dashboard logic: sign-in, approved-list check, reading the sheet, drawing the charts |
+| `whiteboard.sql` | The Whiteboard tables, approved list, privacy rules and save function |
+| `whiteboard-sync/` | The "Whiteboard sync" Google Apps Script that sends the WHITEBOARD sheet to Supabase |
+| `whiteboard-logo.png` | The company logo shown on the dashboard |
 
 ## How to run it
 
@@ -87,6 +92,31 @@ The routine sends `{"p_token": "...", "p_data": { ... }}` to `/rest/v1/rpc/save_
 - `type` is `task`, `email`, `note` or `other`. For `task` items, `task_title` must be the task's title exactly as it appears in the app; that's how the two get linked.
 - Everything is shown as plain text. Links must start with `https://`.
 - Ticks are remembered by each item's wording, so re-sending a day's briefing keeps them as long as the titles don't change.
+
+## Whiteboard dashboard
+
+`dashboard.html` shows the WHITEBOARD Google Sheet (vacancies, move-ins and move-outs, turnover, property checks, onboarding) at https://wendy10501.github.io/to-do-app/dashboard.html . Sign in with the same email and password as the To-Do List.
+
+**Who can see it:** only people whose email is on the approved list in Supabase (the `dashboard_access` table) and confirmed. Anyone can create an account for the To-Do List, but that alone doesn't open the whiteboard. The page itself contains no data from the sheet, so its public address shows nothing until an approved person signs in.
+
+**How the sheet gets here:**
+
+1. A Google Apps Script called "Whiteboard sync" (its own project in Wendy's Google account; the code is in `whiteboard-sync/`) exports the WHITEBOARD as an .xlsx file every 10 minutes and sends it to Supabase by calling `save_whiteboard` with a private token. The script can read Google Drive but not change it.
+2. `save_whiteboard` checks the token, then keeps the newest copy in the `whiteboard` table. Only the token's SHA-256 hash is stored, in `private.whiteboard_tokens`, which the API can't reach. The token itself lives only in the script's properties.
+3. After you sign in, the dashboard checks the approved list, reads the newest copy and draws everything in your browser. While it's open it checks for a newer copy every 2 minutes, and it warns if nothing has arrived for 30 minutes.
+
+One-time setup (already done once it's working):
+
+1. In the Supabase SQL editor, run `whiteboard.sql`. It creates the approved list with Wendy, Chandler, Ira, Celeste and Ren.
+2. In Supabase, under Authentication > Sign In / Providers > Email, make sure **Confirm Email** is on. The approved list relies on it: with it off, anyone could create an account using a teammate's email.
+3. Under Authentication > URL Configuration > Redirect URLs, add `https://wendy10501.github.io/to-do-app/**` so confirmation and password-reset emails come back to the dashboard.
+4. Signed in to the Google account that can open the WHITEBOARD, go to script.google.com and create a new project named "Whiteboard sync". In Project Settings, tick "Show appsscript.json manifest file in editor". Replace the contents of `Code.gs` and `appsscript.json` with the files in `whiteboard-sync/`, then save.
+5. Choose `setup` in the function list and click Run. Approve the permissions (Google warns that it hasn't verified the app because it's your own script: click Advanced, then "Go to Whiteboard sync"). The Execution log shows one line starting with `insert into private.whiteboard_tokens`; run that line in the Supabase SQL editor.
+6. Choose `syncWhiteboard` and click Run. The log should say "Sent the WHITEBOARD to Supabase". From then on it runs every 10 minutes.
+
+**Adding or removing people:** in Supabase, open Table Editor > `dashboard_access` and add or delete a row, with the email in lower case. A new person opens the dashboard, taps "First time? Create your account", confirms their email, then signs in. Deleting a row takes the dashboard away from that person the next time it checks (within 2 minutes).
+
+**Turning the sync off:** run `stopSync` in the Whiteboard sync script. Run `setup` again to turn it back on.
 
 ## Customizing
 
