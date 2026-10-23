@@ -18,7 +18,7 @@
  * After that it runs on its own every 10 minutes. Run stopSync to turn it off.
  */
 
-const WHITEBOARD_ID = '17jb7nTWyDSKr28QwsvM8An9o4ZpqUnzPR2QjvfTSz1Y';
+const WHITEBOARD_ID = '1Gxgagz7ACAMTT3rbEQYTY8ueOQvlawtIisQcNuNnmjU';
 const SUPABASE_URL = 'https://vceuihhxhcaywalnvsxu.supabase.co';
 // The publishable key is meant to be public (the same one is in config.js).
 // Saving still needs the private token that setup creates.
