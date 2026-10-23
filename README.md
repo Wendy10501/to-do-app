@@ -107,7 +107,7 @@ The routine sends `{"p_token": "...", "p_data": { ... }}` to `/rest/v1/rpc/save_
 
 One-time setup (already done once it's working):
 
-1. In the Supabase SQL editor, run `whiteboard.sql`. It creates the approved list with Wendy, Chandler, Ira, Celeste and Ren.
+1. In the Supabase SQL editor, run `whiteboard.sql`. It creates the approved list with Wendy, Ira and Ren.
 2. In Supabase, under Authentication > Sign In / Providers > Email, make sure **Confirm Email** is on. The approved list relies on it: with it off, anyone could create an account using a teammate's email.
 3. Under Authentication > URL Configuration > Redirect URLs, add `https://wendy10501.github.io/to-do-app/**` so confirmation and password-reset emails come back to the dashboard.
 4. Signed in to the Google account that can open the WHITEBOARD, go to script.google.com and create a new project named "Whiteboard sync". In Project Settings, tick "Show appsscript.json manifest file in editor". Replace the contents of `Code.gs` and `appsscript.json` with the files in `whiteboard-sync/`, then save.

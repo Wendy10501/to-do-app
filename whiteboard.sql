@@ -29,11 +29,9 @@ alter table public.dashboard_access enable row level security;
 revoke all on public.dashboard_access from anon, authenticated;
 
 insert into public.dashboard_access (email, name) values
-  ('wendy@integritypmnv.com',        'Wendy'),
-  ('chandler.integritypm@gmail.com', 'Chandler'),
-  ('ira.integritypm@gmail.com',      'Ira'),
-  ('celeste.integritypm@gmail.com',  'Celeste'),
-  ('ren.integritypm@gmail.com',      'Ren')
+  ('wendy@integritypmnv.com',   'Wendy'),
+  ('ira.integritypm@gmail.com', 'Ira'),
+  ('ren.integritypm@gmail.com', 'Ren')
 on conflict (email) do nothing;
 
 -- True when the signed-in person's email is on the list and confirmed.
