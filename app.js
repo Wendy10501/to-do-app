@@ -165,7 +165,7 @@ function updateTask(id, changes) {
   saveCache();
   render();
   remote(() => db.from("tasks").update(toRow(task)).eq("id", id));
-  // Keep the matching Task Tracker item ticked (or not) to match
+  // Keep the matching Daily Briefing item ticked (or not) to match
   if ("done" in changes && typeof onTaskDoneChanged === "function") onTaskDoneChanged(task);
 }
 
@@ -188,7 +188,7 @@ function deleteTask(id) {
 function clearCompleted() {
   const removed = tasks.filter((t) => t.done);
   if (!removed.length) return;
-  // Remember in the Task Tracker that these were finished before they disappear
+  // Remember in the Daily Briefing that these were finished before they disappear
   if (typeof onTasksRemoved === "function") onTasksRemoved(removed);
   tasks = tasks.filter((t) => !t.done);
   saveCache();
@@ -316,7 +316,7 @@ function render() {
   $("clearDone").hidden = !tasks.some((t) => t.done);
   $("todoCount").textContent = allOpen.length;
 
-  // The Task Tracker shows task items too, so refresh it whenever tasks change
+  // The Daily Briefing shows task items too, so refresh it whenever tasks change
   if (typeof renderTracker === "function") renderTracker();
 }
 

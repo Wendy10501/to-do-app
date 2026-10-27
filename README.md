@@ -9,7 +9,7 @@ A simple to-do list app built with plain HTML, CSS, and JavaScript. Tasks are st
 | `index.html` | The page layout |
 | `styles.css` | Colors, fonts, spacing (supports light and dark mode) |
 | `app.js` | All the app logic: sign-in, adding, editing, sorting, syncing |
-| `briefing.js` | The Task Tracker tab: shows the daily briefing and remembers what's ticked off |
+| `briefing.js` | The Daily Briefing tab: shows the daily briefing and remembers what's ticked off |
 | `config.js` | Your Supabase project address and publishable key |
 | `schema.sql` | The tasks table and privacy rules (already run in Supabase) |
 | `briefings.sql` | The daily briefing tables, privacy rules and save function |
@@ -25,18 +25,18 @@ A simple to-do list app built with plain HTML, CSS, and JavaScript. Tasks are st
 
 ## Features
 
-The app has two tabs. The one you used last opens next time; a link ending in `#tracker` opens the Task Tracker.
+The app has two tabs. The one you used last opens next time; a link ending in `#tracker` (or `#daily-briefing`) opens the Daily Briefing, and `#create-task` opens Create Task.
 
-**Task Tracker** shows the daily briefing, the same one that's emailed each morning:
+**Daily Briefing** shows the daily briefing, the same one that's emailed each morning:
 
 - The banner, the numbers (due today, overdue, meetings, action items), the Action Items and the Daily Summary
 - Tick off action items on any device; ticks sync like tasks do
-- Items that came from the To-Do List stay in step with it: tick one in either place and it's ticked in both
-- "+ Add to To-Do" turns an email or note item into a task due today, so it doesn't get lost when tomorrow's briefing arrives
+- Items that came from Create Task stay in step with it: tick one in either place and it's ticked in both
+- "+ Create task" turns an email or note item into a task due today, so it doesn't get lost when tomorrow's briefing arrives
 - "Open email" jumps straight to the email the item came from
 - Use the arrows to look back at the last two weeks of briefings
 
-**To-Do List** is the original app:
+**Create Task** is the original app, for tasks typed in by hand:
 
 - Add tasks with a due date, priority (High, Normal, Low), and list
 - Tasks group into Overdue, Today, Upcoming, and No date
@@ -95,9 +95,9 @@ The routine sends `{"p_token": "...", "p_data": { ... }}` to `/rest/v1/rpc/save_
 
 ## Whiteboard dashboard
 
-`dashboard.html` shows the WHITEBOARD Google Sheet (vacancies, move-ins and move-outs, turnover, property checks, onboarding) at https://wendy10501.github.io/to-do-app/dashboard.html . Sign in with the same email and password as the To-Do List.
+`dashboard.html` shows the WHITEBOARD Google Sheet (vacancies, move-ins and move-outs, turnover, property checks, onboarding) at https://wendy10501.github.io/to-do-app/dashboard.html . Sign in with the same email and password as IPMI Tasks.
 
-**Who can see it:** only people whose email is on the approved list in Supabase (the `dashboard_access` table) and confirmed. Anyone can create an account for the To-Do List, but that alone doesn't open the whiteboard. The page itself contains no data from the sheet, so its public address shows nothing until an approved person signs in.
+**Who can see it:** only people whose email is on the approved list in Supabase (the `dashboard_access` table) and confirmed. Anyone can create an account for IPMI Tasks, but that alone doesn't open the whiteboard. The page itself contains no data from the sheet, so its public address shows nothing until an approved person signs in.
 
 **How the sheet gets here:**
 

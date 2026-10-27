@@ -1,13 +1,13 @@
 // ============================================================
-// Task Tracker tab
+// Daily Briefing tab
 // Shows the daily briefing (the same one that's emailed each
 // morning) with action items you can tick off on any device.
 //
 // Each morning the IPMI Daily Briefing saves a copy of the email
 // here (see briefings.sql). Ticks are saved to your account.
-// Items that come from your To-Do List stay in step with it:
+// Items that come from the Create Task tab stay in step with it:
 // ticking one here marks the task done there, and the other way
-// round. Anything else can be added to the To-Do List with one tap.
+// round. Anything else can be turned into a task with one tap.
 // ============================================================
 
 const TAB_KEY = "todo-app.tab";
@@ -134,7 +134,7 @@ function prepareBriefing(row) {
   return { day: row.day, data, updatedAt: row.updatedAt || row.updated_at || null, items, summary };
 }
 
-// ---- Matching items to To-Do List tasks ----
+// ---- Matching items to tasks in the Create Task tab ----
 function checkFor(day, key) {
   return checks[`${day}|${key}`] || null;
 }
@@ -203,7 +203,7 @@ function toggleItem(day, item, done) {
   saveCheck(day, item.key, fields);
   if (task && !!task.done !== done) {
     updateTask(task.id, { done, doneAt: done ? now : null });
-    showToast(done ? "Also ticked off in your To-Do List." : "Reopened in your To-Do List too.");
+    showToast(done ? "Also ticked off in Create Task." : "Reopened in Create Task too.");
   } else {
     renderTracker();
   }
@@ -218,7 +218,7 @@ function addItemToTodo(day, item) {
   });
   saveCheck(day, item.key, { task_id: task.id });
   renderTracker();
-  showToast("Added to your To-Do List for today.", () => {
+  showToast("Task created, due today.", () => {
     const index = tasks.findIndex((t) => t.id === task.id);
     if (index !== -1) {
       tasks.splice(index, 1);
@@ -230,7 +230,7 @@ function addItemToTodo(day, item) {
   });
 }
 
-// Called by the To-Do List when a task is ticked or unticked there
+// Called by the Create Task tab when a task is ticked or unticked there
 function onTaskDoneChanged(task) {
   for (const briefing of briefings) {
     for (const item of briefing.items) {
@@ -248,7 +248,7 @@ function onTaskDoneChanged(task) {
   }
 }
 
-// Called by the To-Do List just before tasks are deleted or cleared,
+// Called by the Create Task tab just before tasks are deleted or cleared,
 // so finished items stay ticked here after their task is gone
 function onTasksRemoved(removed) {
   for (const task of removed) {
@@ -379,8 +379,8 @@ function itemHTML(briefing, item) {
   const actions = [];
   if (item.link) actions.push(externalLink(item.link, linkLabel(item.link), "chip"));
   if (item.type !== "task") {
-    if (task) actions.push(`<span class="chip chip-linked">&#10003; In To-Do List</span>`);
-    else if (!done) actions.push(`<button type="button" class="chip chip-add" data-action="add">+ Add to To-Do</button>`);
+    if (task) actions.push(`<span class="chip chip-linked">&#10003; Task created</span>`);
+    else if (!done) actions.push(`<button type="button" class="chip chip-add" data-action="add">+ Create task</button>`);
   }
   const classes = ["tb-item"];
   if (done) classes.push("done");
@@ -514,8 +514,8 @@ function renderTracker() {
 // ---- Tabs ----
 function tabFromHash() {
   const hash = location.hash.replace(/^#/, "").toLowerCase();
-  if (["tracker", "task-tracker", "briefing"].includes(hash)) return "tracker";
-  if (["todo", "to-do", "tasks"].includes(hash)) return "todo";
+  if (["tracker", "task-tracker", "briefing", "daily-briefing"].includes(hash)) return "tracker";
+  if (["todo", "to-do", "tasks", "create-task"].includes(hash)) return "todo";
   return null;
 }
 

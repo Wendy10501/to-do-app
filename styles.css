@@ -404,7 +404,7 @@ button { -webkit-tap-highlight-color: transparent; }
 .toast { width: max-content; }
 
 /* ============================================================
-   Tabs: Task Tracker (daily briefing) and To-Do List
+   Tabs: Daily Briefing and Create Task
    ============================================================ */
 .tabs {
   display: grid; grid-template-columns: 1fr 1fr; gap: 4px;

@@ -63,17 +63,17 @@
       <h1 id="greeting">Hello</h1>
     </section>
 
-    <!-- Tabs: Task Tracker (the daily briefing) and To-Do List -->
+    <!-- Tabs: Daily Briefing (the emailed morning briefing) and Create Task (tasks typed in by hand) -->
     <div class="tabs" role="tablist" aria-label="Choose a view">
       <button type="button" class="tab" role="tab" id="tabTracker" data-tab="tracker" aria-controls="trackerPanel" aria-selected="false" tabindex="-1">
-        <span>Task Tracker</span><span class="count" id="trackerCount" hidden></span>
+        <span>Daily Briefing</span><span class="count" id="trackerCount" hidden></span>
       </button>
       <button type="button" class="tab active" role="tab" id="tabTodo" data-tab="todo" aria-controls="todoPanel" aria-selected="true">
-        <span>To-Do List</span><span class="count" id="todoCount">0</span>
+        <span>Create Task</span><span class="count" id="todoCount">0</span>
       </button>
     </div>
 
-    <!-- Task Tracker: the morning briefing, with boxes to tick off -->
+    <!-- Daily Briefing: the morning briefing, with boxes to tick off -->
     <div id="trackerPanel" class="tab-panel" role="tabpanel" aria-labelledby="tabTracker" hidden>
       <div class="day-nav">
         <button type="button" id="prevDay" class="day-btn" aria-label="Earlier briefing">&#8249;</button>
@@ -86,7 +86,7 @@
       <div id="trackerBody" class="stack" aria-live="polite"></div>
     </div>
 
-    <!-- To-Do List: the original app -->
+    <!-- Create Task: the original to-do app, for tasks typed in by hand -->
     <div id="todoPanel" class="tab-panel" role="tabpanel" aria-labelledby="tabTodo">
     <div id="banner" class="banner" hidden>
       <span class="banner-icon" aria-hidden="true">&#128276;</span>
@@ -162,6 +162,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="config.js?v=2"></script>
   <script src="app.js?v=5"></script>
-  <script src="briefing.js?v=1"></script>
+  <script src="briefing.js?v=2"></script>
 </body>
 </html>
