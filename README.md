@@ -116,6 +116,8 @@ One-time setup (already done once it's working):
 
 **Adding or removing people:** in Supabase, open Table Editor > `dashboard_access` and add or delete a row, with the email in lower case. A new person opens the dashboard, taps "First time? Create your account", confirms their email, then signs in. Deleting a row takes the dashboard away from that person the next time it checks (within 2 minutes).
 
+**Rental units summary:** the "Rental units" card totals every unit IPMI manages (occupied, on notice, vacant, occupancy, monthly rent roll, leases ending in 90 days) and lists them with a search and filter. It reads a tab in the WHITEBOARD named `Units` (or `Rental Units`). Put one unit per row with a header row on top; only `Address` (or `Property`) is required, and `Unit`, `Tenant`, `Status`, `Rent`, `Lease End` (or `Lease To`), `Beds` and `Owner` are used when present. A Buildium Rent Roll export can be pasted in as is; title rows above the header are skipped. The Vacancies and Move Out tabs override a unit's status, so day-to-day changes show without editing the Units tab. Addresses on those tabs that aren't on the Units tab are listed under the stats so they can be added. To make the card's links open the Units tab directly, add its tab ID to `TAB_GID` in `dashboard.js`.
+
 **Turning the sync off:** run `stopSync` in the Whiteboard sync script. Run `setup` again to turn it back on.
 
 ## Customizing

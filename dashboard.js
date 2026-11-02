@@ -139,7 +139,54 @@ function computeModel(XLSX, b64, todayStr){
   if(noInsurance.length) alerts.push(['warn',`${noInsurance.length} tenants · no renters ins.`,'Move In',null]);
   vac.filter(v=>v.lastAgo==null||v.lastAgo>14).forEach(v=>alerts.push(['warn',`${short(v.a)} · ${v.lastAgo==null?'no property check logged':'last checked '+v.lastAgo+' days ago'}`,'Property Check',v.lastN]));
 
-  const busiest = moUpcoming.length? Object.entries(moUpcoming.reduce((o,m)=>(o[m.d]=(o[m.d]||0)+1,o),{})).sort((a,b)=>b[1]-a[1])[0]:null;
+  // ---- Rental units (the "Units" tab: one row per unit IPMI manages, e.g. a Buildium rent roll pasted in) ----
+  const units = computeUnits();
+  function computeUnits(){
+    const ws=wb.Sheets[wb.SheetNames.find(nm=>/^\s*(rental\s+)?units\s*$/i.test(nm))||'']; if(!ws||!ws['!ref']) return {missing:true};
+    const tab=wb.SheetNames.find(nm=>wb.Sheets[nm]===ws);
+    const r0=XLSX.utils.decode_range(ws['!ref']).s.r;
+    const all=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
+    const H=r=>r.map(c=>S(c).toLowerCase());
+    // The header row is the first of the top 15 rows that names an address or property column
+    const isAddr=h=>/^(property\s*)?address$|^property(\s*name)?$|^street(\s*address)?$/.test(h);
+    const hi=all.slice(0,15).findIndex(r=>H(r).some(isAddr)); if(hi<0) return {missing:false,noHeader:true,tab};
+    const h=H(all[hi]); const find=re=>h.findIndex(x=>re.test(x));
+    const C={addr:h.findIndex(isAddr), unit:find(/^unit(\s*(#|no\.?|number))?$/), status:find(/status|occupan/),
+      tenant:find(/tenant|resident|lessee/), rent:find(/^(current\s*|monthly\s*)?rent(\s*amount)?$/), lease:find(/lease\s*(end|to|exp)|end\s*date|expir/),
+      beds:find(/^bed/), owner:find(/owner/)};
+    if(C.rent<0) C.rent=find(/rent/);
+    const unitKey=a=>{const k=key(a); if(!k) return null; const t=S(a).toLowerCase().replace(/#/g,' ').split(/\s+/).filter(Boolean); const last=t[t.length-1];
+      return t.length>2&&/^\d+[a-z]?$/.test(last)&&last!==t[0]?k+' '+last:k};
+    const money=v=>{if(typeof v==='number') return v; const m=S(v).match(/[\d,]+(?:\.\d+)?/); return m?Number(m[0].replace(/,/g,'')):null};
+    // Live status from the other tabs wins over the Units tab, since the team updates those day to day
+    const match=(list,k,kk)=>list.find(x=>unitKey(x.a)===kk)||(kk===k?list.find(x=>x.k===k&&!list.some(y=>y!==x&&y.k===k)):undefined);
+    const seen=new Set(); const out=[];
+    all.slice(hi+1).forEach((r,i)=>{
+      let a=S(r[C.addr]); if(!a) return;
+      if(C.unit>=0){const u=S(r[C.unit]).replace(/[^\w]/g,''); if(u&&!new RegExp('(#|\\s)'+u+'$','i').test(a)) a+=' #'+u}
+      const k=key(a); if(!k) return; const kk=unitKey(a); if(seen.has(kk)) return; seen.add(kk);
+      const st=U(C.status>=0?r[C.status]:''); const tenant=C.tenant>=0?S(r[C.tenant]):'';
+      const lease=C.lease>=0?dateOf(r[C.lease]):null;
+      const v=match(vac,k,kk), mi=match(upcomingIn.map(x=>({...x,k:key(x.a)})),k,kk), mOut=match(moUpcoming,k,kk);
+      let s;
+      if(v) s='vacant'; else if(mOut) s='notice'; else if(/VACANT|AVAILABLE|UNOCCUPIED/.test(st)) s='vacant';
+      else if(/NOTICE/.test(st)) s='notice'; else if(st||tenant||C.status<0&&C.tenant<0) s='occupied'; else s='vacant';
+      const rent=(v&&v.rent!=null)?v.rent:(C.rent>=0?money(r[C.rent]):null);
+      out.push({a,k,s,tenant,rent,lease,leaseL:lease!=null?fmtFull(lease):'',leaseIn:lease!=null?lease-TODAY:null,beds:C.beds>=0?S(r[C.beds]):'',owner:C.owner>=0?S(r[C.owner]):'',
+        moveIn:mi?mi.date:'',moveOut:mOut?fmt(mOut.d):'',cancelling:cxKeys.has(k),n:r0+hi+i+2});
+    });
+    // Addresses the team is working on that aren't on the Units tab yet, so the totals don't quietly miss them
+    const listed=new Set(out.map(u=>u.k));
+    const notListed=[...new Set([...vac.map(v=>v.a),...upcomingIn.map(u=>u.a),...moUpcoming.map(m=>m.a)].filter(a=>key(a)&&!listed.has(key(a))))];
+    const occ=out.filter(u=>u.s!=='vacant'); const occRent=occ.map(u=>u.rent).filter(x=>x!=null);
+    return {missing:false,tab,cols:{tenant:C.tenant>=0,rent:C.rent>=0,lease:C.lease>=0,beds:C.beds>=0,owner:C.owner>=0},
+      list:out, total:out.length, occupied:out.filter(u=>u.s==='occupied').length, notice:out.filter(u=>u.s==='notice').length, vacant:out.filter(u=>u.s==='vacant').length,
+      rentRoll:occRent.reduce((s,x)=>s+x,0), rentKnown:occRent.length, avgRent:occRent.length?Math.round(occRent.reduce((s,x)=>s+x,0)/occRent.length):0,
+      ending90:out.filter(u=>u.leaseIn!=null&&u.leaseIn>=0&&u.leaseIn<=90).length, expired:out.filter(u=>u.s==='occupied'&&u.leaseIn!=null&&u.leaseIn<0).length,
+      notListed};
+  }
+
+  const busiest = moUpcoming.length?Object.entries(moUpcoming.reduce((o,m)=>(o[m.d]=(o[m.d]||0)+1,o),{})).sort((a,b)=>b[1]-a[1])[0]:null;
   return {
     today:todayStr, todayLabel:fmt(TODAY)+', '+ty, year:ty,
     kpi:{vacant:vac.length, unleased:rents.reduce((s,x)=>s+x,0), avgRent:rents.length?Math.round(rents.reduce((s,x)=>s+x,0)/rents.length):0,
@@ -150,7 +197,7 @@ function computeModel(XLSX, b64, todayStr){
       const st= t?(t.ready?['up','Ready to list']:t.overdue?['down','Turnover overdue']:['amber','Turnover '+t.pct+'%']): sale?['amber','Sale']: cxKeys.has(m.k)?['amber','Account ended']:['down','No turnover row'];
       return {a:m.a,date:m.d!=null?fmt(m.d):'Date ?',type:m.type,tag:st,n:m.n,tn:t?t.n:null}}),
     checklist:{stages:STAGES.map(s=>s[0]),rows:checklistRows},
-    byMonth, leads, cx, turnover, pc, pcLast:lastFull, who, onboarding, onbCount:np.length, cols,
+    units, byMonth, leads, cx, turnover, pc, pcLast:lastFull, who, onboarding, onbCount:np.length, cols,
     pcAll:checks.slice().sort((a,b)=>b.d-a.d||b.n-a.n).map(c=>{const [y,mm]=ymd(c.d);return {a:c.a,dl:fmtFull(c.d),m:MON[mm-1]+' '+y,who:c.who,n:c.n}}),
     timeline:[...upcomingIn.filter(u=>u.days<=60).map(u=>({d:u.days,t:'in',l:u.date})),
       ...Object.entries(moUpcoming.filter(m=>m.d-TODAY<=60).reduce((o,m)=>(o[m.d]=(o[m.d]||0)+1,o),{})).map(([d,n])=>({d:+d-TODAY,t:'out',l:fmt(+d)+(n>1?` (${n})`:'')}))]
@@ -217,6 +264,7 @@ function render(m){
  document.querySelectorAll('.item').forEach(b=>b.addEventListener('click',()=>{const o=b.classList.toggle('open');b.setAttribute('aria-expanded',o);b.nextElementSibling.hidden=!o}));
  filterList();
  renderFunnel();
+ renderUnits();
  // vacancy bars
  const maxD=Math.max(1,...m.vac.map(v=>v.days||0));
  $('vacBars').innerHTML=m.vac.map(v=>{const d=v.days;const c=d==null?'var(--grey)':d>90?'var(--down)':d>45?'var(--amber)':'var(--up)';
@@ -237,6 +285,45 @@ function render(m){
  prog('onbBars',m.onboarding.map(([t,d,n])=>[t,n?Math.round(d/n*100):0,`${d}/${n}`]));
  $('onbSub').textContent=`${m.onbCount} active properties`;
 }
+// ---- Rental units card ----
+const U_STATUS={occupied:['up','Occupied'],notice:['amber','On notice'],vacant:['down','Vacant']};
+function renderUnits(){const u=MODEL.units;const body=$('uBody');const prevQ=$('uQ')?$('uQ').value:'';
+ if(!u||u.missing||u.noHeader||!u.total){
+  $('uFilters').hidden=true;$('uSub').textContent='Every unit IPMI manages';
+  body.innerHTML=`<div class="usetup"><p><b>${u&&u.noHeader?`The ${esc(u.tab)} tab needs a header row.`:u&&!u.missing?`The ${esc(u.tab)} tab has no units yet.`:'Add a tab named Units to the WHITEBOARD sheet to see every unit here.'}</b></p>
+   <p>Put one unit per row. The first row is the header. Only <code>Address</code> is required; these columns are used when present: <code>Unit</code> <code>Tenant</code> <code>Status</code> <code>Rent</code> <code>Lease End</code> <code>Beds</code> <code>Owner</code>.</p>
+   <p>The quickest way: export the Rent Roll from Buildium and paste it in. Vacancies and move-outs from the other tabs update each unit's status automatically. The dashboard picks it up within ${SYNC_MINUTES} minutes.</p></div>`;
+  return}
+ $('uFilters').hidden=false;$('uSrc').textContent=u.tab;$('uSrc').dataset.tab=u.tab;$('uSrc').href=sheetHref(u.tab);
+ $('uSub').textContent=`${u.total} units on the ${u.tab} tab`;
+ const pct=n=>u.total?Math.round(n/u.total*100):0;
+ const rentNote=u.rentKnown<u.occupied+u.notice?`${u.rentKnown} of ${u.occupied+u.notice} units with rent`:`avg ${money(u.avgRent)}`;
+ const stats=[['Total units',u.total,`${u.occupied+u.notice} leased · ${u.vacant} vacant`],
+  ['Occupancy',pct(u.occupied+u.notice)+'%',`${u.occupied} occupied${u.notice?` · ${u.notice} on notice`:''}`],
+  ['Vacant',u.vacant,pct(u.vacant)+'% of units'],
+  ['Monthly rent roll',u.cols.rent||u.rentKnown?money(u.rentRoll):'—',u.cols.rent||u.rentKnown?rentNote:'Add a Rent column'],
+  ['Leases ending',u.cols.lease?u.ending90:'—',u.cols.lease?`next 90 days${u.expired?` · ${u.expired} past end date`:''}`:'Add a Lease End column']];
+ const cols=u.cols;
+ body.innerHTML=`<div class="ustats">${stats.map(([l,v,s])=>`<div class="ustat"><span>${esc(l)}</span><b>${esc(v)}</b><small>${esc(s)}</small></div>`).join('')}</div>
+  <div class="occ" role="img" aria-label="${u.occupied} occupied, ${u.notice} on notice, ${u.vacant} vacant">${[['occupied','var(--up)'],['notice','var(--amber)'],['vacant','var(--down)']].filter(([k])=>u[k]).map(([k,c])=>`<b style="width:${u[k]/u.total*100}%;background:${c}" title="${U_STATUS[k][1]}: ${u[k]}"></b>`).join('')}</div>
+  <div class="key"><span><i style="background:var(--up)"></i>Occupied ${u.occupied}</span><span><i style="background:var(--amber)"></i>On notice ${u.notice}</span><span><i style="background:var(--down)"></i>Vacant ${u.vacant}</span></div>
+  ${u.notListed.length?`<p class="ugap">Not on the ${esc(u.tab)} tab yet: ${u.notListed.map(a=>esc(shortA(a))).join(', ')}</p>`:''}
+  <label class="search ufind"><input id="uQ" type="search" placeholder="Find a unit, tenant or owner" aria-label="Find a unit" autocomplete="off"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></label>
+  <div class="utable"><table><thead><tr><th>Unit</th><th>Status</th>${cols.tenant?'<th class="hide-s">Tenant</th>':''}${cols.beds?'<th class="hide-s">Beds</th>':''}<th class="num">Rent</th>${cols.lease?'<th class="hide-s">Lease ends</th>':''}${cols.owner?'<th class="hide-s">Owner</th>':''}</tr></thead><tbody id="uRows"></tbody></table></div>`;
+ $('uQ').value=prevQ;$('uQ').addEventListener('input',renderUnitRows);
+ renderUnitRows()}
+function renderUnitRows(){const u=MODEL.units;const cols=u.cols;const q=($('uQ').value||'').toLowerCase().trim();const show=$('uShow').value;
+ const ord={vacant:0,notice:1,occupied:2};
+ const list=u.list.filter(x=>(show==='all'||(show==='ending'?x.leaseIn!=null&&x.leaseIn>=0&&x.leaseIn<=90:x.s===show))&&(!q||[x.a,x.tenant,x.owner].join(' ').toLowerCase().includes(q)))
+  .sort((a,b)=>show==='ending'?a.leaseIn-b.leaseIn:(ord[a.s]-ord[b.s])||a.a.localeCompare(b.a,undefined,{numeric:true}));
+ const span=2+cols.tenant+cols.beds+1+cols.lease+cols.owner;
+ $('uRows').innerHTML=list.length?list.map(x=>{const [c,l]=U_STATUS[x.s];
+  const note=x.s==='notice'&&x.moveOut?'Moving out '+x.moveOut:x.moveIn?'Moving in '+x.moveIn:x.cancelling?'Account cancelling':'';
+  const soon=x.leaseIn!=null&&x.leaseIn>=0&&x.leaseIn<=90;
+  return `<tr><td><a class="ext" href="${esc(sheetHref(u.tab,x.n))}" target="_blank" rel="noopener" title="Open ${esc(u.tab)}, row ${x.n}">${esc(x.a)}</a></td><td><span class="tag ${c}">${l}</span>${note?`<span class="note">${esc(note)}</span>`:''}</td>${cols.tenant?`<td class="hide-s">${esc(x.tenant)||'—'}</td>`:''}${cols.beds?`<td class="hide-s">${esc(x.beds)}</td>`:''}<td class="num">${x.rent!=null?money(x.rent):'—'}</td>${cols.lease?`<td class="hide-s">${x.leaseL?esc(x.leaseL)+(soon?`<span class="note">in ${x.leaseIn} days</span>`:x.leaseIn<0&&x.s==='occupied'?'<span class="note">Past end date</span>':''):'—'}</td>`:''}${cols.owner?`<td class="hide-s">${esc(x.owner)}</td>`:''}</tr>`}).join('')
+  :`<tr class="none"><td colspan="${span}">No units match.</td></tr>`}
+$('uShow').addEventListener('change',()=>{if(MODEL&&MODEL.units&&MODEL.units.total)renderUnitRows()});
+
 let pcSel=null; // month ("Sep 2026") whose checks are listed, or null
 function renderPC(){const m=MODEL;const pcMax=Math.max(1,...m.pc.map(x=>x.n));
  if(pcSel&&!m.pc.some(x=>x.full===pcSel)) pcSel=null;

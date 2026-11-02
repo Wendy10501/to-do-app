@@ -286,6 +286,34 @@ img{max-width:100%}
 .status-btn{display:inline-flex;align-items:center;padding:6px 12px;border:0;border-radius:10px;background:var(--soft);color:var(--ink);font:inherit;font-weight:600;white-space:nowrap;cursor:pointer}
 .status-btn:hover{background:var(--sand)}
 .rail .theme-btn{cursor:pointer}
+
+/* ---- Rental units ---- */
+.ustats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+.ustat{background:var(--soft);border-radius:14px;padding:14px 16px;display:grid;gap:4px;min-width:0}
+.ustat span{font-size:.78rem;color:var(--muted)}
+.ustat b{font-family:var(--fd);font-size:1.7rem;font-weight:500;line-height:1.05;font-variant-numeric:tabular-nums}
+.ustat small{font-size:.74rem;color:var(--muted)}
+@media (max-width:900px){.ustats{grid-template-columns:repeat(2,minmax(0,1fr))}.ustat:first-child{grid-column:1/-1}}
+.occ{display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--soft);margin:16px 0 8px}
+.occ b{display:block;height:100%}
+.occ b+b{border-left:2px solid var(--card)}
+.ufind{margin:16px 0 10px;background:var(--soft)}
+.ufind input{padding:10px 0}
+.utable{max-height:420px;overflow:auto;border:1px solid var(--line);border-radius:12px}
+.utable table{width:100%;border-collapse:collapse;font-size:.84rem}
+.utable th{position:sticky;top:0;background:var(--card);text-align:left;font-weight:600;color:var(--muted);font-size:.74rem;text-transform:uppercase;letter-spacing:.04em;padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+.utable td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+.utable tr:last-child td{border-bottom:0}
+.utable td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.utable td a{color:var(--ink);font-weight:600;text-decoration:none}
+.utable td a:hover{text-decoration:underline;text-underline-offset:3px}
+.utable td .note{display:block;font-size:.74rem;color:var(--muted)}
+.utable .none td{color:var(--muted);text-align:center;padding:18px}
+@media (max-width:640px){.utable .hide-s{display:none}}
+.usetup{background:var(--soft);border-radius:14px;padding:16px 18px;display:grid;gap:8px;font-size:.88rem}
+.usetup p{margin:0}
+.usetup code{font-family:ui-monospace,Menlo,monospace;font-size:.82rem;background:var(--card);padding:2px 6px;border-radius:6px}
+.ugap{margin:10px 0 0;font-size:.8rem;color:var(--amber-ink)}
   </style>
 </head>
 <body>
@@ -343,6 +371,7 @@ img{max-width:100%}
     <a class="rb logo" href="#top" aria-label="Integrity Property Management home"><img src="logo-mark.png" alt="IPMI"></a>
     <div class="sp"></div>
     <a class="rb" href="#top" aria-label="Overview"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg></a>
+    <a class="rb" href="#units" aria-label="Rental units"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M8 7h2M14 7h2M8 11h2M14 11h2M8 15h2M14 15h2M11 21v-3h2v3"/></svg></a>
     <a class="rb" href="#funnel" aria-label="Move-ins"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2"/></svg></a>
     <a class="rb" href="#calendar" aria-label="Calendar"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg></a>
     <a class="rb" href="#portfolio" aria-label="Portfolio"><svg viewBox="0 0 24 24"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14"/></svg></a>
@@ -407,6 +436,17 @@ img{max-width:100%}
     </section>
 
     <section class="alerts" id="alerts" aria-label="Needs attention"></section>
+
+    <section class="card has-src" id="units">
+      <div class="ch">
+        <div><h3>Rental units</h3><p id="uSub">Every unit IPMI manages</p></div>
+        <div class="sel" id="uFilters" hidden>
+          <select id="uShow" aria-label="Show"><option value="all">All units</option><option value="occupied">Occupied</option><option value="notice">On notice</option><option value="vacant">Vacant</option><option value="ending">Lease ends in 90 days</option></select>
+        </div>
+      </div>
+      <div id="uBody"></div>
+      <footer class="srcs"><div>Source <a class="src ext" id="uSrc" data-tab="Units" target="_blank" rel="noopener">Units</a><a class="src ext" data-tab="Vacancies" target="_blank" rel="noopener">Vacancies</a><a class="src ext" data-tab="Move Out" target="_blank" rel="noopener">Move Out</a></div></footer>
+    </section>
 
     <section class="card has-src" id="funnel">
       <div class="ch">
@@ -485,6 +525,6 @@ img{max-width:100%}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js" integrity="sha384-BWcjm9OdFth9TbhCxZPdm+gAOUMAzQy9nmTs12ioXdCcbVnJaPMn+fMUoQCLt60R" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous"></script>
 <script src="config.js?v=2"></script>
-<script src="dashboard.js?v=1"></script>
+<script src="dashboard.js?v=2"></script>
 </body>
 </html>
