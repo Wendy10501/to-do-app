@@ -147,43 +147,72 @@ function computeModel(XLSX, b64, todayStr){
     const r0=XLSX.utils.decode_range(ws['!ref']).s.r;
     const all=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
     const H=r=>r.map(c=>S(c).toLowerCase());
-    // The header row is the first of the top 15 rows that names an address or property column
+    // Two layouts work. A plain list: one row per unit with an Address column.
+    // A Buildium Rent Roll pasted as is: each property's address on a row by itself, then its units
+    // (Unit, Tenants, Lease Start, Lease End, Bed/Bath, ... Rent ...), then a "Total for" row.
     const isAddr=h=>/^(property\s*)?address$|^property(\s*name)?$|^street(\s*address)?$/.test(h);
-    const hi=all.slice(0,15).findIndex(r=>H(r).some(isAddr)); if(hi<0) return {missing:false,noHeader:true,tab};
+    const isUnit=h=>/^unit(\s*(#|no\.?|number))?$/.test(h);
+    const hi=all.slice(0,15).findIndex(r=>{const h=H(r);return h.some(isAddr)||(h.some(isUnit)&&h.some(x=>/tenant/.test(x)))});
+    if(hi<0) return {missing:false,noHeader:true,tab};
     const h=H(all[hi]); const find=re=>h.findIndex(x=>re.test(x));
-    const C={addr:h.findIndex(isAddr), unit:find(/^unit(\s*(#|no\.?|number))?$/), status:find(/status|occupan/),
+    const C={addr:h.findIndex(isAddr), unit:h.findIndex(isUnit), status:find(/status|occupan/),
       tenant:find(/tenant|resident|lessee/), rent:find(/^(current\s*|monthly\s*)?rent(\s*amount)?$/), lease:find(/lease\s*(end|to|exp)|end\s*date|expir/),
-      beds:find(/^bed/), owner:find(/owner/)};
-    if(C.rent<0) C.rent=find(/rent/);
+      start:find(/lease\s*(start|from)|start\s*date/), beds:find(/^bed/), owner:find(/owner/), bal:find(/balance/)};
+    if(C.rent<0) C.rent=find(/rent(?!\s*(cycle|start))/);
+    const grouped=C.addr<0;
+    const asOfM=all.slice(0,hi).flat().map(S).join(' ').match(/as of (\d{1,2}\/\d{1,2}\/\d{2,4})/i); const asOf=asOfM?dateOf(asOfM[1]):null;
     const unitKey=a=>{const k=key(a); if(!k) return null; const t=S(a).toLowerCase().replace(/#/g,' ').split(/\s+/).filter(Boolean); const last=t[t.length-1];
       return t.length>2&&/^\d+[a-z]?$/.test(last)&&last!==t[0]?k+' '+last:k};
-    const money=v=>{if(typeof v==='number') return v; const m=S(v).match(/[\d,]+(?:\.\d+)?/); return m?Number(m[0].replace(/,/g,'')):null};
+    const money=v=>{if(typeof v==='number') return v; const m=S(v).match(/-?[\d,]+(?:\.\d+)?/); return m?Number(m[0].replace(/,/g,'')):null};
+    const blank=(r,from)=>r.slice(from).every(c=>S(c)==='');
+    // Collect rows: [address, unit, row, sheet row number]
+    const clean=a=>S(a).replace(/\*+$/,'').trim(); const raw=[]; let prop=''; const propUnits={};
+    for(let i=hi+1;i<all.length;i++){const r=all[i];const a0=S(r[0]);
+      if(/^(summary by|totals? and averages)/i.test(a0)) break;
+      if(grouped){
+        if(!a0||/^total for/i.test(a0)) continue;
+        if(blank(r,1)){ if(key(a0)) prop=clean(a0); continue }        // a property heading
+        if(!prop||!S(r[C.tenant])&&money(r[C.rent])==null) continue; // not a unit row
+        const u=a0.replace(/[^\w-]/g,''); raw.push([prop,u,r,i]); (propUnits[prop]=propUnits[prop]||new Set()).add(u);
+      } else { if(!a0&&!S(r[C.addr])) continue; raw.push([clean(r[C.addr]),C.unit>=0?S(r[C.unit]).replace(/[^\w-]/g,''):'',r,i]) }
+    }
+    const nameOf=(p,u)=>{if(!u) return p; if(grouped&&propUnits[p].size===1&&(u==='1'||/#/.test(p))) return p; return new RegExp('(#|\\s)'+u+'$','i').test(p)?p:p+' #'+u};
+    // One row per unit. Buildium lists every lease still open on a unit, so keep the one that started last.
+    const byUnit=new Map();
+    raw.forEach(([p,u,r,i])=>{const a=nameOf(p,u);const kk=unitKey(a);if(!kk) return;const st=C.start>=0?dateOf(r[C.start]):null;
+      const prev=byUnit.get(kk); if(!prev||(st!=null&&(prev.st==null||st>=prev.st))) byUnit.set(kk,{a,r,i,st,leases:(prev?prev.leases:0)+1}); else prev.leases++});
     // Live status from the other tabs wins over the Units tab, since the team updates those day to day
     const match=(list,k,kk)=>list.find(x=>unitKey(x.a)===kk)||(kk===k?list.find(x=>x.k===k&&!list.some(y=>y!==x&&y.k===k)):undefined);
-    const seen=new Set(); const out=[];
-    all.slice(hi+1).forEach((r,i)=>{
-      let a=S(r[C.addr]); if(!a) return;
-      if(C.unit>=0){const u=S(r[C.unit]).replace(/[^\w]/g,''); if(u&&!new RegExp('(#|\\s)'+u+'$','i').test(a)) a+=' #'+u}
-      const k=key(a); if(!k) return; const kk=unitKey(a); if(seen.has(kk)) return; seen.add(kk);
-      const st=U(C.status>=0?r[C.status]:''); const tenant=C.tenant>=0?S(r[C.tenant]):'';
-      const lease=C.lease>=0?dateOf(r[C.lease]):null;
-      const v=match(vac,k,kk), mi=match(upcomingIn.map(x=>({...x,k:key(x.a)})),k,kk), mOut=match(moUpcoming,k,kk);
+    const miList=upcomingIn.map(x=>({...x,k:key(x.a)}));
+    const out=[];
+    byUnit.forEach(({a,r,i},kk)=>{
+      const k=key(a); const st=U(C.status>=0?r[C.status]:''); const tenant=C.tenant>=0?S(r[C.tenant]):'';
+      const leaseRaw=C.lease>=0?S(r[C.lease]):''; const lease=C.lease>=0?dateOf(r[C.lease]):null;
+      const v=match(vac,k,kk), mi=match(miList,k,kk), mOut=match(moUpcoming,k,kk);
       let s;
       if(v) s='vacant'; else if(mOut) s='notice'; else if(/VACANT|AVAILABLE|UNOCCUPIED/.test(st)) s='vacant';
       else if(/NOTICE/.test(st)) s='notice'; else if(st||tenant||C.status<0&&C.tenant<0) s='occupied'; else s='vacant';
       const rent=(v&&v.rent!=null)?v.rent:(C.rent>=0?money(r[C.rent]):null);
-      out.push({a,k,s,tenant,rent,lease,leaseL:lease!=null?fmtFull(lease):'',leaseIn:lease!=null?lease-TODAY:null,beds:C.beds>=0?S(r[C.beds]):'',owner:C.owner>=0?S(r[C.owner]):'',
-        moveIn:mi?mi.date:'',moveOut:mOut?fmt(mOut.d):'',cancelling:cxKeys.has(k),n:r0+hi+i+2});
+      const mtm=s!=='vacant'&&(/at.?will|month/i.test(leaseRaw)||(lease!=null&&lease<TODAY));
+      out.push({a,k,s,tenant:s==='vacant'?'':tenant,rent,lease,leaseL:s==='vacant'?'':lease!=null?fmtFull(lease):leaseRaw,leaseIn:lease!=null&&s!=='vacant'?lease-TODAY:null,mtm,
+        beds:C.beds>=0?S(r[C.beds]).replace(/^'?-\s*/,''):'',owner:C.owner>=0?S(r[C.owner]):'',bal:C.bal>=0&&s!=='vacant'?money(r[C.bal]):null,
+        moveIn:mi?mi.date:'',moveOut:mOut?fmt(mOut.d):'',cancelling:cxKeys.has(k),tab,n:r0+i+1});
     });
-    // Addresses the team is working on that aren't on the Units tab yet, so the totals don't quietly miss them
-    const listed=new Set(out.map(u=>u.k));
-    const notListed=[...new Set([...vac.map(v=>v.a),...upcomingIn.map(u=>u.a),...moUpcoming.map(m=>m.a)].filter(a=>key(a)&&!listed.has(key(a))))];
+    // A rent roll lists only leased units, so vacant units on the Vacancies tab are added from there
+    const listedKK=new Set([...byUnit.keys()]); const listedK=new Set(out.map(u=>u.k));
+    vac.forEach(v=>{const kk=unitKey(v.a); if(listedKK.has(kk)||(kk===v.k&&listedK.has(v.k))) return; listedKK.add(kk); listedK.add(v.k);
+      const mi=match(miList,v.k,kk);
+      out.push({a:v.a,k:v.k,s:'vacant',tenant:'',rent:v.rent,lease:null,leaseL:'',leaseIn:null,mtm:false,beds:'',owner:'',bal:null,moveIn:mi?mi.date:'',moveOut:'',cancelling:v.cancelling,tab:'Vacancies',n:v.n})});
+    // Addresses the team is working on that aren't on either list, so the totals don't quietly miss them
+    const notListed=[...new Set([...upcomingIn.map(u=>u.a),...moUpcoming.map(m=>m.a)].filter(a=>key(a)&&!listedK.has(key(a))))];
     const occ=out.filter(u=>u.s!=='vacant'); const occRent=occ.map(u=>u.rent).filter(x=>x!=null);
-    return {missing:false,tab,cols:{tenant:C.tenant>=0,rent:C.rent>=0,lease:C.lease>=0,beds:C.beds>=0,owner:C.owner>=0},
+    const bal=occ.map(u=>u.bal).filter(x=>x!=null&&x>0);
+    return {missing:false,tab,asOf:asOf!=null?fmtFull(asOf):null,asOfAgo:asOf!=null?TODAY-asOf:null,
+      cols:{tenant:C.tenant>=0,rent:C.rent>=0,lease:C.lease>=0,beds:C.beds>=0,owner:C.owner>=0,bal:C.bal>=0},
       list:out, total:out.length, occupied:out.filter(u=>u.s==='occupied').length, notice:out.filter(u=>u.s==='notice').length, vacant:out.filter(u=>u.s==='vacant').length,
       rentRoll:occRent.reduce((s,x)=>s+x,0), rentKnown:occRent.length, avgRent:occRent.length?Math.round(occRent.reduce((s,x)=>s+x,0)/occRent.length):0,
-      ending90:out.filter(u=>u.leaseIn!=null&&u.leaseIn>=0&&u.leaseIn<=90).length, expired:out.filter(u=>u.s==='occupied'&&u.leaseIn!=null&&u.leaseIn<0).length,
-      notListed};
+      ending90:out.filter(u=>u.leaseIn!=null&&u.leaseIn>=0&&u.leaseIn<=90).length, mtm:out.filter(u=>u.mtm).length,
+      balDue:bal.reduce((s,x)=>s+x,0), balCount:bal.length, notListed};
   }
 
   const busiest = moUpcoming.length?Object.entries(moUpcoming.reduce((o,m)=>(o[m.d]=(o[m.d]||0)+1,o),{})).sort((a,b)=>b[1]-a[1])[0]:null;
@@ -295,14 +324,14 @@ function renderUnits(){const u=MODEL.units;const body=$('uBody');const prevQ=$('
    <p>The quickest way: export the Rent Roll from Buildium and paste it in. Vacancies and move-outs from the other tabs update each unit's status automatically. The dashboard picks it up within ${SYNC_MINUTES} minutes.</p></div>`;
   return}
  $('uFilters').hidden=false;$('uSrc').textContent=u.tab;$('uSrc').dataset.tab=u.tab;$('uSrc').href=sheetHref(u.tab);
- $('uSub').textContent=`${u.total} units on the ${u.tab} tab`;
+ $('uSub').textContent=`${u.total} units`+(u.asOf?` · rent roll as of ${u.asOf}${u.asOfAgo>45?' (time to paste a new one)':''}`:` on the ${u.tab} tab`);
  const pct=n=>u.total?Math.round(n/u.total*100):0;
  const rentNote=u.rentKnown<u.occupied+u.notice?`${u.rentKnown} of ${u.occupied+u.notice} units with rent`:`avg ${money(u.avgRent)}`;
  const stats=[['Total units',u.total,`${u.occupied+u.notice} leased · ${u.vacant} vacant`],
   ['Occupancy',pct(u.occupied+u.notice)+'%',`${u.occupied} occupied${u.notice?` · ${u.notice} on notice`:''}`],
   ['Vacant',u.vacant,pct(u.vacant)+'% of units'],
   ['Monthly rent roll',u.cols.rent||u.rentKnown?money(u.rentRoll):'—',u.cols.rent||u.rentKnown?rentNote:'Add a Rent column'],
-  ['Leases ending',u.cols.lease?u.ending90:'—',u.cols.lease?`next 90 days${u.expired?` · ${u.expired} past end date`:''}`:'Add a Lease End column']];
+  ['Leases ending',u.cols.lease?u.ending90:'—',u.cols.lease?`next 90 days${u.mtm?` · ${u.mtm} month-to-month`:''}`:'Add a Lease End column']];
  const cols=u.cols;
  body.innerHTML=`<div class="ustats">${stats.map(([l,v,s])=>`<div class="ustat"><span>${esc(l)}</span><b>${esc(v)}</b><small>${esc(s)}</small></div>`).join('')}</div>
   <div class="occ" role="img" aria-label="${u.occupied} occupied, ${u.notice} on notice, ${u.vacant} vacant">${[['occupied','var(--up)'],['notice','var(--amber)'],['vacant','var(--down)']].filter(([k])=>u[k]).map(([k,c])=>`<b style="width:${u[k]/u.total*100}%;background:${c}" title="${U_STATUS[k][1]}: ${u[k]}"></b>`).join('')}</div>
@@ -320,7 +349,7 @@ function renderUnitRows(){const u=MODEL.units;const cols=u.cols;const q=($('uQ')
  $('uRows').innerHTML=list.length?list.map(x=>{const [c,l]=U_STATUS[x.s];
   const note=x.s==='notice'&&x.moveOut?'Moving out '+x.moveOut:x.moveIn?'Moving in '+x.moveIn:x.cancelling?'Account cancelling':'';
   const soon=x.leaseIn!=null&&x.leaseIn>=0&&x.leaseIn<=90;
-  return `<tr><td><a class="ext" href="${esc(sheetHref(u.tab,x.n))}" target="_blank" rel="noopener" title="Open ${esc(u.tab)}, row ${x.n}">${esc(x.a)}</a></td><td><span class="tag ${c}">${l}</span>${note?`<span class="note">${esc(note)}</span>`:''}</td>${cols.tenant?`<td class="hide-s">${esc(x.tenant)||'—'}</td>`:''}${cols.beds?`<td class="hide-s">${esc(x.beds)}</td>`:''}<td class="num">${x.rent!=null?money(x.rent):'—'}</td>${cols.lease?`<td class="hide-s">${x.leaseL?esc(x.leaseL)+(soon?`<span class="note">in ${x.leaseIn} days</span>`:x.leaseIn<0&&x.s==='occupied'?'<span class="note">Past end date</span>':''):'—'}</td>`:''}${cols.owner?`<td class="hide-s">${esc(x.owner)}</td>`:''}</tr>`}).join('')
+  return `<tr><td><a class="ext" href="${esc(sheetHref(x.tab,x.n))}" target="_blank" rel="noopener" title="Open ${esc(x.tab)}, row ${x.n}">${esc(x.a)}</a></td><td><span class="tag ${c}">${l}</span>${note?`<span class="note">${esc(note)}</span>`:''}</td>${cols.tenant?`<td class="hide-s">${esc(x.tenant)||'—'}</td>`:''}${cols.beds?`<td class="hide-s">${esc(x.beds)}</td>`:''}<td class="num">${x.rent!=null?money(x.rent):'—'}</td>${cols.lease?`<td class="hide-s">${x.leaseL?esc(x.leaseL)+(soon?`<span class="note">in ${x.leaseIn} days</span>`:x.mtm?'<span class="note">Month-to-month</span>':''):'—'}</td>`:''}${cols.owner?`<td class="hide-s">${esc(x.owner)}</td>`:''}</tr>`}).join('')
   :`<tr class="none"><td colspan="${span}">No units match.</td></tr>`}
 $('uShow').addEventListener('change',()=>{if(MODEL&&MODEL.units&&MODEL.units.total)renderUnitRows()});
 
